@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Annual Budget</title>
+  <link rel="stylesheet" href="/static/styles.css?v=3" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+</head>
+<body>
+  <header>
+    <div class="header-left">
+      <div class="logo">€</div>
+      <div>
+        <h1 data-i18n="appTitle">Annual budget</h1>
+        <span class="meta header-selects">
+          <label><span data-i18n="client">Client</span>
+            <select id="client-select" class="header-select" title="Active client"></select>
+          </label>
+          <label><span data-i18n="year">Year</span>
+            <select id="year-select" class="header-select"></select>
+          </label>
+        </span>
+      </div>
+    </div>
+    <div class="header-actions">
+      <div class="lang-switch" id="lang-switch" aria-label="Language">
+        <span class="lang-label" data-i18n="language">Language</span>
+        <button type="button" class="lang-btn active" data-lang="en">EN</button>
+        <button type="button" class="lang-btn" data-lang="de">DE</button>
+      </div>
+      <div class="dropdown" id="automation-dropdown">
+        <button class="btn btn-primary" id="btn-automation" data-i18n="automation">Automation ▾</button>
+        <div class="dropdown-menu" id="automation-menu">
+          <button type="button" data-action="import-excel" data-i18n="importExcel">Import Excel (.xlsx)</button>
+          <button type="button" data-action="import-csv" data-i18n="importCsv">Import CSV</button>
+          <button type="button" data-action="map-categories" data-i18n="mapCategories">Map categories…</button>
+          <button type="button" data-action="recalculate" data-i18n="recalculate">Recalculate totals</button>
+          <button type="button" data-action="export-excel" data-i18n="exportExcel">Export Excel</button>
+          <button type="button" data-action="import-log" data-i18n="importLog">View import log</button>
+        </div>
+      </div>
+      <button class="btn btn-ghost" id="btn-settings" data-i18n="settings">Settings</button>
+    </div>
+  </header>
+
+  <nav class="tabs" id="main-tabs" aria-label="Main navigation">
+    <button type="button" data-panel="dashboard" class="active" data-i18n="tabDashboard">Dashboard</button>
+    <button type="button" data-panel="plan" class="nav-enter-data" data-i18n="tabEnterData">Enter data</button>
+    <button type="button" data-panel="summary" data-i18n="tabSummary">Summary</button>
+    <button type="button" data-panel="charts" data-i18n="tabCharts">Charts</button>
+    <button type="button" data-panel="clients" data-i18n="tabClients">Clients</button>
+  </nav>
+
+  <main>
+    <section id="panel-dashboard" class="panel active">
+      <p class="hint-banner" data-i18n="hintDashboard">To add or change amounts, click Enter data or open Clients to pick a customer.</p>
+      <div class="month-select">
+        <label><span data-i18n="month">Month</span>: <select id="dashboard-month"></select></label>
+        <label style="margin-left:16px"><span data-i18n="view">View</span>:
+          <select id="chart-period">
+            <option value="month" data-i18n="viewMonth">This month</option>
+            <option value="year" data-i18n="viewYear">Full year (Summe)</option>
+          </select>
+        </label>
+      </div>
+      <div class="kpi-row" id="kpi-row"></div>
+      <div class="dashboard-grid">
+        <div class="card">
+          <h2 data-i18n="balance">Balance</h2>
+          <div class="hero-balance" id="hero-balance">—</div>
+          <div id="hero-pill"></div>
+          <p class="meta" style="margin-top:16px">
+            <span data-i18n="revenue">Revenue</span>: <strong id="hero-revenue">—</strong> ·
+            <span data-i18n="expenses">Expenses</span>: <strong id="hero-expenses">—</strong>
+          </p>
+        </div>
+        <div class="card">
+          <h2 data-i18n="spending">Where your spending goes</h2>
+          <div class="chart-wrap"><canvas id="donut-chart"></canvas></div>
+          <ul class="legend" id="donut-legend"></ul>
+        </div>
+      </div>
+      <div class="card" style="margin-top:24px">
+        <h2 data-i18n="revVsExp">Revenue vs expenses</h2>
+        <div class="chart-wrap" style="height:320px"><canvas id="bar-chart"></canvas></div>
+      </div>
+      <div class="kpi-row" id="section-cards"></div>
+    </section>
+
+    <section id="panel-plan" class="panel">
+      <h2 class="panel-title" data-i18n="enterBudget">Enter budget data</h2>
+      <p class="hint-banner" data-i18n="hintEnter">Click a month cell, type the amount, press Enter. Or use quick fill below.</p>
+      <nav class="tabs plan-subtabs" id="plan-tabs"></nav>
+      <div class="grid-toolbar">
+        <label><span data-i18n="category">Category</span> <select id="bulk-line-select" class="bulk-select"></select></label>
+        <label><span data-i18n="amount">Amount</span> <input type="number" id="bulk-amount" placeholder="0.00" step="0.01" /></label>
+        <label><span data-i18n="from">From</span> <select id="bulk-from-month"></select></label>
+        <label><span data-i18n="to">to</span> <select id="bulk-to-month"></select></label>
+        <button class="btn btn-primary" id="btn-bulk-apply" data-i18n="applyMonths">Apply to months</button>
+        <button class="btn btn-ghost" id="btn-apply-all-year" data-i18n="all12">All 12 months</button>
+      </div>
+      <p id="plan-loading" class="plan-loading" hidden data-i18n="loading">Loading…</p>
+      <div id="plan-grids"></div>
+    </section>
+
+    <section id="panel-summary" class="panel">
+      <div class="card">
+        <h2 data-i18n="annualSummary">Annual summary</h2>
+        <div class="grid-wrap">
+          <table class="summary-table" id="summary-table"></table>
+        </div>
+      </div>
+    </section>
+
+    <section id="panel-charts" class="panel">
+      <div class="month-select">
+        <label><span data-i18n="month">Month</span>: <select id="charts-month"></select></label>
+      </div>
+      <div class="dashboard-grid">
+        <div class="card">
+          <h2 data-i18n="spending">Spending by section</h2>
+          <div class="chart-wrap"><canvas id="charts-donut"></canvas></div>
+        </div>
+        <div class="card" id="drilldown-card" style="display:none">
+          <h2 id="drilldown-title">Drill-down</h2>
+          <div class="chart-wrap"><canvas id="drilldown-chart"></canvas></div>
+        </div>
+      </div>
+      <div class="card" style="margin-top:24px">
+        <h2>Top expenses (selected month)</h2>
+        <div id="top-expenses"></div>
+      </div>
+    </section>
+
+    <section id="panel-clients" class="panel">
+      <div class="card clients-card">
+        <h2 data-i18n="tabClients">Clients</h2>
+        <p class="hint-banner" id="clients-hint" data-i18n="noClients">No clients yet. Create your first client below.</p>
+        <ul class="client-list" id="client-list"></ul>
+        <hr class="clients-divider" />
+        <h3 id="client-form-title" data-i18n="newClient">New client</h3>
+        <form id="client-form" class="client-profile-form">
+          <div class="form-grid">
+            <label><span data-i18n="clientName">Name</span> *<input type="text" name="name" required maxlength="255" /></label>
+            <label><span data-i18n="companyName">Company</span><input type="text" name="company_name" maxlength="255" /></label>
+            <label><span data-i18n="contactPerson">Contact person</span><input type="text" name="contact_person" maxlength="255" /></label>
+            <label><span data-i18n="email">Email</span><input type="email" name="email" maxlength="255" /></label>
+            <label><span data-i18n="phone">Phone</span><input type="tel" name="phone" maxlength="64" /></label>
+            <label><span data-i18n="street">Street</span><input type="text" name="street" maxlength="255" /></label>
+            <label><span data-i18n="postalCode">Postal code</span><input type="text" name="postal_code" maxlength="32" /></label>
+            <label><span data-i18n="city">City</span><input type="text" name="city" maxlength="128" /></label>
+            <label><span data-i18n="country">Country</span><input type="text" name="country" value="Germany" maxlength="128" /></label>
+            <label><span data-i18n="taxId">Tax ID</span><input type="text" name="tax_id" maxlength="64" /></label>
+            <label><span data-i18n="vatId">VAT ID</span><input type="text" name="vat_id" maxlength="64" /></label>
+            <label><span data-i18n="iban">IBAN</span><input type="text" name="iban" maxlength="64" /></label>
+          </div>
+          <label class="full-width"><span data-i18n="notes">Notes</span><textarea name="notes" rows="3" maxlength="2000"></textarea></label>
+          <input type="hidden" name="edit_id" id="client-edit-id" value="" />
+          <div class="form-actions">
+            <button type="submit" class="btn btn-primary" id="btn-save-client" data-i18n="saveClient">Save client</button>
+            <button type="button" class="btn btn-ghost" id="btn-cancel-edit" hidden data-i18n="cancelEdit">Cancel edit</button>
+          </div>
+        </form>
+      </div>
+    </section>
+  </main>
+
+  <footer>Difference = Total revenue − Total expenses · Auto-calculated</footer>
+
+  <input type="file" id="file-input" accept=".xlsx,.xls,.csv" />
+
+  <div class="overlay" id="overlay"></div>
+  <aside class="slide-panel" id="slide-panel">
+    <h3 id="panel-title">Panel</h3>
+    <div id="panel-body"></div>
+    <div style="margin-top:24px;display:flex;gap:8px">
+      <button class="btn btn-ghost" id="panel-cancel">Cancel</button>
+      <button class="btn btn-primary" id="panel-confirm" style="display:none">Confirm</button>
+    </div>
+  </aside>
+
+  <div class="toast" id="toast"></div>
+
+  <script src="/static/i18n.js?v=1"></script>
+  <script src="/static/app.js?v=7"></script>
+</body>
+</html>
