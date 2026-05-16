@@ -348,6 +348,53 @@ SECTIONS: list[Section] = [
     ),
 ]
 
+_CHILD_EXPENSE_ITEMS = [
+    ("school_fee", "Schulgebühren (monatlich)", "School tuition (monthly)"),
+    ("school_yearly", "Schulgebühr (jährlich)", "School fee (yearly)"),
+    ("books", "Bücher & Schulmaterial", "Books & school supplies"),
+    ("semester_fee", "Semesterbeitrag", "Semester / term fee"),
+    ("exam_fee", "Prüfungs- & Anmeldegebühren", "Exam & registration fees"),
+    ("bus_fee", "Schulbus / Fahrtkosten", "School bus / transport fee"),
+    ("lunch", "Schulessen / Mensa", "School lunch / canteen"),
+    ("aftercare", "Hort / Nachmittagsbetreuung", "After-school care"),
+    ("sports", "Sport, AG & Vereine", "Sports, clubs & activities"),
+    ("uniform", "Schulkleidung / Uniform", "School clothing / uniform"),
+    ("tutor", "Nachhilfe", "Tutoring / extra lessons"),
+    ("trips", "Klassenfahrten & Ausflüge", "School trips & excursions"),
+    ("music_lessons", "Musikunterricht", "Music lessons"),
+    ("tech", "Tablet / Laptop / Technik", "Tablet / laptop / school tech"),
+    ("insurance", "Schul- & Unfallversicherung", "School & accident insurance"),
+    ("other", "Sonstiges (Kind)", "Other child expenses"),
+]
+
+
+def _child_section_lines(prefix: str) -> list[Line]:
+    return _lines([(f"{prefix}_{key}", de, en) for key, de, en in _CHILD_EXPENSE_ITEMS])
+
+
+SECTIONS.extend([
+    Section(
+        id="child_1",
+        title_de="Kind 1 — Schule & Gebühren",
+        title_en="Child 1 — School & fees",
+        tab="children",
+        lines=_child_section_lines("ch1"),
+        summary_key="ch1_total",
+        summary_label_de="Summe Kind 1",
+        summary_label_en="Total Child 1",
+    ),
+    Section(
+        id="child_2",
+        title_de="Kind 2 — Schule & Gebühren",
+        title_en="Child 2 — School & fees",
+        tab="children",
+        lines=_child_section_lines("ch2"),
+        summary_key="ch2_total",
+        summary_label_de="Summe Kind 2",
+        summary_label_en="Total Child 2",
+    ),
+])
+
 TABS = [
     {"id": "dashboard", "label_de": "Übersicht", "label_en": "Dashboard"},
     {"id": "income", "label_de": "Einnahmen", "label_en": "Income"},
@@ -357,6 +404,8 @@ TABS = [
     {"id": "insurance", "label_de": "Versicherung", "label_en": "Insurance"},
     {"id": "pension", "label_de": "Rente", "label_en": "Pension"},
     {"id": "wealth", "label_de": "Vermögen", "label_en": "Wealth"},
+    {"id": "children", "label_de": "Kinder", "label_en": "Children"},
+    {"id": "balance", "label_de": "Vermögen & Schulden", "label_en": "Assets & Debts"},
     {"id": "summary", "label_de": "Zusammenfassung", "label_en": "Summary"},
     {"id": "charts", "label_de": "Diagramme", "label_en": "Charts"},
 ]
@@ -378,7 +427,7 @@ for section in SECTIONS:
 
 
 def sections_for_tab(tab_id: str) -> list[Section]:
-    if tab_id in ("dashboard", "summary", "charts"):
+    if tab_id in ("dashboard", "summary", "charts", "balance"):
         return []
     return [s for s in SECTIONS if s.tab == tab_id]
 

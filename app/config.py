@@ -7,8 +7,12 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
-_ROOT = Path(__file__).resolve().parent.parent
-load_dotenv(_ROOT / ".env")
+from app.paths import user_data_dir
+
+_ROOT = user_data_dir()
+_env_file = _ROOT / ".env"
+if _env_file.exists():
+    load_dotenv(_env_file)
 
 # sqlite = works without Docker/MySQL (default)
 # mysql = optional if you run docker compose up -d

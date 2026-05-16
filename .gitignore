@@ -1,0 +1,6 @@
+data/auth.json
+tests/_test_auth.json
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
