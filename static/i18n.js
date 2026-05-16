@@ -161,6 +161,51 @@ const I18N = {
     editClient: "Edit",
     cancelEdit: "Cancel edit",
     editClientTitle: "Edit client",
+    colRow: "Row",
+    colSumme: "Total",
+    colMonatlich: "Monthly avg.",
+    sumTotalRevenue: "Total revenue",
+    sumLiving: "Total — Living",
+    sumHousing: "Total — Housing",
+    sumInsurance: "Total — Insurance",
+    sumSavingsLoans: "Total — Savings / loans",
+    sumChildren: "Children (school & fees)",
+    sumExpenses5: "Total — Other expenses",
+    sumTotalExpenses: "Total expenses",
+    sumDifference: "Difference",
+    yearTotalDiff: "Year total (difference)",
+    topExpensesTitle: "Top expenses (selected month)",
+    spendingBySection: "Spending by section",
+    spendingByItem: "Spending by category",
+    noExpensesMonth: "No expenses for the selected month.",
+    summaryNoFilled: "No amounts entered for this total.",
+    summaryShowFilled: "Show what you entered",
+    drilldownTitle: "Drill-down",
+    drilldownPrefix: "Drill-down",
+    noExpensesSection: "No expenses in this section for the selected month.",
+    footerNote: "Difference = Total revenue − Total expenses · Auto-calculated",
+    monthlyModeDiv12: "Total ÷ 12",
+    monthlyModeFilled: "Average of filled months",
+    panelCancel: "Cancel",
+    panelConfirm: "Confirm",
+    sectionTotal: "Section total",
+    chooseCategory: "Choose a category",
+    enterAmount: "Enter an amount",
+    loadError: "Could not load budget. Refresh the page or check the server.",
+    errorPrefix: "Error",
+    requestFailed: "request failed",
+    monthJan: "Jan",
+    monthFeb: "Feb",
+    monthMar: "Mar",
+    monthApr: "Apr",
+    monthMay: "May",
+    monthJun: "Jun",
+    monthJul: "Jul",
+    monthAug: "Aug",
+    monthSep: "Sep",
+    monthOct: "Oct",
+    monthNov: "Nov",
+    monthDec: "Dec",
   },
   de: {
     appTitle: "Jahresbudget",
@@ -323,21 +368,120 @@ const I18N = {
     editClient: "Bearbeiten",
     cancelEdit: "Abbrechen",
     editClientTitle: "Kunde bearbeiten",
+    colRow: "Zeile",
+    colSumme: "Summe",
+    colMonatlich: "Monatlich",
+    sumTotalRevenue: "Gesamteinnahmen",
+    sumLiving: "Summe — Lebenshaltung",
+    sumHousing: "Summe — Wohnen",
+    sumInsurance: "Summe — Versicherungen",
+    sumSavingsLoans: "Summe — Sparen / Kredite",
+    sumChildren: "Kinder (Schule & Gebühren)",
+    sumExpenses5: "Summe — Sonstige Ausgaben",
+    sumTotalExpenses: "Gesamtausgaben",
+    sumDifference: "Differenz",
+    yearTotalDiff: "Jahressumme (Differenz)",
+    topExpensesTitle: "Höchste Ausgaben (gewählter Monat)",
+    spendingBySection: "Ausgaben nach Bereich",
+    spendingByItem: "Ausgaben nach Kategorie",
+    noExpensesMonth: "Keine Ausgaben im gewählten Monat.",
+    summaryNoFilled: "Für diese Summe wurden keine Beträge eingetragen.",
+    summaryShowFilled: "Eingetragene Werte anzeigen",
+    drilldownTitle: "Detailansicht",
+    drilldownPrefix: "Detailansicht",
+    noExpensesSection: "Keine Ausgaben in diesem Bereich für den gewählten Monat.",
+    footerNote: "Differenz = Gesamteinnahmen − Gesamtausgaben · Automatisch berechnet",
+    monthlyModeDiv12: "Summe / 12",
+    monthlyModeFilled: "Durchschnitt der ausgefüllten Monate",
+    panelCancel: "Abbrechen",
+    panelConfirm: "Bestätigen",
+    sectionTotal: "Bereichssumme",
+    chooseCategory: "Kategorie wählen",
+    enterAmount: "Betrag eingeben",
+    loadError: "Budget konnte nicht geladen werden. Seite neu laden oder Server prüfen.",
+    errorPrefix: "Fehler",
+    requestFailed: "Anfrage fehlgeschlagen",
+    monthJan: "Jan",
+    monthFeb: "Feb",
+    monthMar: "Mär",
+    monthApr: "Apr",
+    monthMay: "Mai",
+    monthJun: "Jun",
+    monthJul: "Jul",
+    monthAug: "Aug",
+    monthSep: "Sep",
+    monthOct: "Okt",
+    monthNov: "Nov",
+    monthDec: "Dez",
   },
 };
 
+const MONTH_I18N_KEYS = [
+  "monthJan",
+  "monthFeb",
+  "monthMar",
+  "monthApr",
+  "monthMay",
+  "monthJun",
+  "monthJul",
+  "monthAug",
+  "monthSep",
+  "monthOct",
+  "monthNov",
+  "monthDec",
+];
+
+function getLang() {
+  return localStorage.getItem("budget_lang") || "en";
+}
+
 function t(key) {
-  const lang = localStorage.getItem("budget_lang") || "en";
+  const lang = getLang();
   return (I18N[lang] && I18N[lang][key]) || I18N.en[key] || key;
 }
 
+function getMonthLabels() {
+  return MONTH_I18N_KEYS.map((k) => t(k));
+}
+
+function chartSliceLabel(slice) {
+  if (!slice) return "";
+  // API donut slices use `label` (EN) + `label_de`; not always `label_en`.
+  if (getLang() === "de") {
+    return slice.label_de || slice.label_en || slice.label || "";
+  }
+  return slice.label_en || slice.label || slice.label_de || "";
+}
+
+function summaryRowsForTable(summary) {
+  return [
+    ["sumTotalRevenue", summary.total_revenue],
+    ["sumLiving", summary.total_1],
+    ["sumHousing", summary.total_2],
+    ["sumInsurance", summary.total_3],
+    ["sumSavingsLoans", summary.total_4],
+    ["sumChildren", summary.total_children],
+    ["sumExpenses5", summary.total_5],
+    ["sumTotalExpenses", summary.total_expenses],
+    ["sumDifference", summary.difference],
+  ];
+}
+
 function setLanguage(lang) {
+  if (lang !== "en" && lang !== "de") lang = "en";
   localStorage.setItem("budget_lang", lang);
+  document.documentElement.lang = lang;
   applyTranslations();
 }
 
 function applyTranslations() {
   document.querySelectorAll("[data-i18n]").forEach((el) => {
+    const key = el.getAttribute("data-i18n");
+    if (!key) return;
+    if (el.tagName === "OPTION") return;
+    el.textContent = t(key);
+  });
+  document.querySelectorAll("option[data-i18n]").forEach((el) => {
     const key = el.getAttribute("data-i18n");
     if (key) el.textContent = t(key);
   });
@@ -345,6 +489,15 @@ function applyTranslations() {
     const key = el.getAttribute("data-i18n-placeholder");
     if (key) el.placeholder = t(key);
   });
-  const title = document.querySelector("h1");
-  if (title) title.textContent = t("appTitle");
+  document.querySelectorAll("[data-i18n-title]").forEach((el) => {
+    const key = el.getAttribute("data-i18n-title");
+    if (key) el.title = t(key);
+  });
+  const h1 = document.querySelector("header h1");
+  if (h1) h1.textContent = t("appTitle");
+  document.title = t("appTitle");
+  const cancelBtn = document.getElementById("panel-cancel");
+  if (cancelBtn) cancelBtn.textContent = t("panelCancel");
+  const confirmBtn = document.getElementById("panel-confirm");
+  if (confirmBtn && confirmBtn.style.display !== "none") confirmBtn.textContent = t("panelConfirm");
 }

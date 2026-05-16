@@ -59,6 +59,11 @@ def render_donut_png(slices: list[dict[str, Any]], title: str) -> bytes:
     return _fig_to_png(fig)
 
 
+def render_items_pie_png(slices: list[dict[str, Any]], title: str) -> bytes:
+    """Pie chart for individual expense lines (same slice shape as section donut)."""
+    return render_donut_png(slices, title)
+
+
 def render_bar_png(bars: list[dict[str, Any]], title: str) -> bytes:
     if not bars:
         fig, ax = plt.subplots(figsize=(8, 4))

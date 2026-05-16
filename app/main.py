@@ -622,6 +622,9 @@ def export_excel(client_id: int, year: int = 2026):
     settings = get_settings(bid)
     ck = custom_line_keys_by_section(bid)
     balance = compute_balance_sheet(client_id, year)
+    from app.database import list_future_investments
+
+    investments = list_future_investments(client_id)
     buf = build_client_workbook(
         client,
         year,
@@ -630,6 +633,7 @@ def export_excel(client_id: int, year: int = 2026):
         ck,
         balance,
         custom_lines_by_section(bid),
+        future_investments=investments if investments else None,
     )
     safe = "".join(c if c.isalnum() else "_" for c in client["name"])
     return StreamingResponse(

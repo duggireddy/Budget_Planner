@@ -1146,6 +1146,16 @@ main {
   .dashboard-grid { grid-template-columns: 1fr; }
 }
 
+.charts-pies-grid .charts-drilldown-card {
+  grid-column: 1 / -1;
+}
+
+.legend .legend-empty {
+  color: var(--muted, #64748b);
+  font-size: 0.9rem;
+  padding: 8px 0;
+}
+
 .card {
   background: var(--surface);
   border-radius: var(--radius);
@@ -1358,6 +1368,40 @@ table.budget-grid .computed {
 
 .summary-table tr.difference.deficit td { color: var(--deficit); }
 .summary-table tr.difference.surplus td { color: var(--surplus); }
+
+.summary-table tr.summary-row-toggle {
+  cursor: pointer;
+}
+
+.summary-table tr.summary-row-toggle:hover td {
+  background: rgba(79, 142, 247, 0.06);
+}
+
+.summary-table tr.summary-row-toggle.expanded td {
+  background: rgba(79, 142, 247, 0.08);
+}
+
+.summary-table .summary-expand {
+  display: inline-block;
+  width: 1.1em;
+  font-size: 0.75rem;
+  color: var(--primary);
+  margin-right: 4px;
+}
+
+.summary-table tr.summary-detail td {
+  font-size: 0.88rem;
+  color: var(--text-muted, #64748b);
+  background: #f8fafc;
+}
+
+.summary-table tr.summary-detail td:first-child {
+  padding-left: 28px;
+}
+
+.summary-table tr.summary-detail-empty td {
+  font-style: italic;
+}
 
 #file-input { display: none; }
 

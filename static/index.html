@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Annual Budget</title>
-  <link rel="stylesheet" href="/static/styles.css?v=18" />
+  <link rel="stylesheet" href="/static/styles.css?v=20" />
   <script src="/static/vendor/chart.umd.min.js"></script>
   <script>
     if (typeof Chart === 'undefined') {
@@ -127,7 +127,7 @@
         <label style="margin-left:16px"><span data-i18n="view">View</span>:
           <select id="chart-period">
             <option value="month" data-i18n="viewMonth">This month</option>
-            <option value="year" data-i18n="viewYear">Full year (Summe)</option>
+            <option value="year" data-i18n="viewYear">Full year</option>
           </select>
         </label>
       </div>
@@ -193,18 +193,23 @@
       <div class="month-select">
         <label><span data-i18n="month">Month</span>: <select id="charts-month"></select></label>
       </div>
-      <div class="dashboard-grid">
+      <div class="dashboard-grid charts-pies-grid">
         <div class="card">
-          <h2 data-i18n="spending">Spending by section</h2>
+          <h2 data-i18n="spendingBySection">Spending by section</h2>
           <div class="chart-wrap"><canvas id="charts-donut"></canvas></div>
         </div>
-        <div class="card" id="drilldown-card" style="display:none">
-          <h2 id="drilldown-title">Drill-down</h2>
+        <div class="card">
+          <h2 data-i18n="spendingByItem">Spending by category</h2>
+          <div class="chart-wrap"><canvas id="charts-items-pie"></canvas></div>
+          <ul class="legend" id="charts-items-legend"></ul>
+        </div>
+        <div class="card charts-drilldown-card" id="drilldown-card" style="display:none">
+          <h2 id="drilldown-title" data-i18n="drilldownTitle">Drill-down</h2>
           <div class="chart-wrap"><canvas id="drilldown-chart"></canvas></div>
         </div>
       </div>
       <div class="card" style="margin-top:24px">
-        <h2>Top expenses (selected month)</h2>
+        <h2 data-i18n="topExpensesTitle">Top expenses (selected month)</h2>
         <div id="top-expenses"></div>
       </div>
     </section>
@@ -348,22 +353,22 @@
     </section>
   </main>
 
-  <footer>Difference = Total revenue − Total expenses · Auto-calculated</footer>
+  <footer data-i18n="footerNote">Difference = Total revenue − Total expenses · Auto-calculated</footer>
 
   <div class="overlay" id="overlay"></div>
   <aside class="slide-panel" id="slide-panel">
     <h3 id="panel-title">Panel</h3>
     <div id="panel-body"></div>
     <div style="margin-top:24px;display:flex;gap:8px">
-      <button class="btn btn-ghost" id="panel-cancel">Cancel</button>
-      <button type="button" class="btn btn-primary" id="panel-confirm" style="display:none">Confirm</button>
+      <button class="btn btn-ghost" id="panel-cancel" data-i18n="panelCancel">Cancel</button>
+      <button type="button" class="btn btn-primary" id="panel-confirm" style="display:none" data-i18n="panelConfirm">Confirm</button>
     </div>
   </aside>
 
   <div class="toast" id="toast"></div>
 
-  <script src="/static/i18n.js?v=6"></script>
+  <script src="/static/i18n.js?v=10"></script>
   <script src="/static/currency.js?v=1"></script>
-  <script src="/static/app.js?v=41"></script>
+  <script src="/static/app.js?v=45"></script>
 </body>
 </html>

@@ -291,22 +291,57 @@ def chart_payload(
     diff = difference(entries, m, ck)
 
     slices = [
-        {"id": "living", "label": "Living", "label_de": "Lebenshaltung", "amount": total_1(entries, m, ck)},
-        {"id": "housing", "label": "Housing", "label_de": "Wohnen", "amount": total_2(entries, m, ck)},
-        {"id": "insurance", "label": "Insurance", "label_de": "Versicherung", "amount": total_3(entries, m, ck)},
+        {
+            "id": "living",
+            "label": "Living",
+            "label_en": "Living",
+            "label_de": "Lebenshaltung",
+            "amount": total_1(entries, m, ck),
+        },
+        {
+            "id": "housing",
+            "label": "Housing",
+            "label_en": "Housing",
+            "label_de": "Wohnen",
+            "amount": total_2(entries, m, ck),
+        },
+        {
+            "id": "insurance",
+            "label": "Insurance",
+            "label_en": "Insurance",
+            "label_de": "Versicherung",
+            "amount": total_3(entries, m, ck),
+        },
         {
             "id": "savings_loans",
             "label": "Savings & Loans",
+            "label_en": "Savings & Loans",
             "label_de": "Sparen & Kredite",
             "amount": total_4(entries, m, ck),
         },
     ]
     bau = baufinanzierung_total(entries, m, ck)
     if bau > 0:
-        slices.append({"id": "baufinanzierung", "label": "Financing", "label_de": "Baufinanzierung", "amount": bau})
+        slices.append(
+            {
+                "id": "baufinanzierung",
+                "label": "Financing",
+                "label_en": "Financing",
+                "label_de": "Baufinanzierung",
+                "amount": bau,
+            }
+        )
     ch = children_total(entries, m, ck)
     if ch > 0:
-        slices.append({"id": "children", "label": "Children", "label_de": "Kinder (Schule & Gebühren)", "amount": ch})
+        slices.append(
+            {
+                "id": "children",
+                "label": "Children",
+                "label_en": "Children (school & fees)",
+                "label_de": "Kinder (Schule & Gebühren)",
+                "amount": ch,
+            }
+        )
 
     total_slice = sum(s["amount"] for s in slices) or 1
     for s in slices:
@@ -370,7 +405,9 @@ def drilldown_slices(entries: dict[str, list[float]], section_id: str, month: in
     items.sort(key=lambda x: -x["amount"])
     if len(items) > 8:
         other = sum(i["amount"] for i in items[8:])
-        items = items[:8] + [{"key": "other", "label": "Other", "label_de": "Sonstiges", "amount": other}]
+        items = items[:8] + [
+            {"key": "other", "label": "Other", "label_en": "Other", "label_de": "Sonstiges", "amount": other}
+        ]
     total = sum(i["amount"] for i in items) or 1
     for i in items:
         i["pct"] = round(100 * i["amount"] / total, 1)

@@ -74,3 +74,33 @@ def test_monthly_has_expense_rows(sample_export):
     row_labels = [ws.cell(row=i, column=1).value for i in range(2, 12)]
     assert "Total expenses" in row_labels
     assert "Children (school & fees)" in row_labels
+
+
+def test_workbook_has_chart_images():
+    pytest.importorskip("matplotlib")
+    cid = ensure_sample_client()
+    bid = get_or_create_budget(cid, 2026)
+    from app.database import compute_balance_sheet, get_client, get_settings, load_entries
+
+    client = get_client(cid)
+    entries = load_entries(bid)
+    settings = get_settings(bid)
+    ck = custom_line_keys_by_section(bid)
+    balance = compute_balance_sheet(cid)
+    cl = custom_lines_by_section(bid)
+    buf = build_client_workbook(
+        client, 2026, entries, settings["monatlich_mode"], ck, balance, cl
+    )
+    wb = load_workbook(BytesIO(buf.getvalue()))
+    assert len(wb["Charts"]._images) >= 2
+    assert len(wb["Dashboard"]._images) >= 1
+
+
+def test_summary_breakdown_sheet_exists(sample_export):
+    assert "Summary breakdown" in sample_export.sheetnames
+    ws = sample_export["Summary breakdown"]
+    assert ws["A1"].value
+
+
+def test_income_sheet_exists(sample_export):
+    assert "Income" in sample_export.sheetnames

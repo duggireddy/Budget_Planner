@@ -1,7 +1,6 @@
 const YEAR_MIN = 2025;
 const YEAR_MAX = 2040;
 const DEFAULT_YEAR = 2026;
-const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 const CHART_COLORS = ["#4F8EF7", "#7C5CFC", "#F59E0B", "#EF6B6B", "#10B981", "#6366F1"];
 
 let activeClientId = parseInt(localStorage.getItem("activeClientId") || "0", 10);
@@ -29,10 +28,6 @@ function parseNumInput(val) {
   const s = String(val).trim().replace(/\s/g, "").replace(",", ".");
   const n = parseFloat(s);
   return Number.isFinite(n) ? n : 0;
-}
-
-function getLang() {
-  return localStorage.getItem("budget_lang") || "en";
 }
 
 function getActiveClientId() {
@@ -390,7 +385,64 @@ let selectedMonth = 8;
 let donutChart = null;
 let barChart = null;
 let chartsDonut = null;
+let chartsItemsPie = null;
+const donutChartByCanvas = {};
 let drilldownChart = null;
+
+const INCOME_SECTION_IDS = new Set([
+  "income",
+  "self_employed_a",
+  "self_employed_b",
+  "net_a",
+  "net_b",
+  "other_income_a",
+  "other_income_b",
+]);
+
+/** Summary row key → sections included in that total (for expand / filled breakdown). */
+const SUMMARY_EXPAND_CONFIG = {
+  sumTotalRevenue: {
+    sections: ["self_employed_a", "self_employed_b", "net_a", "net_b", "other_income_a", "other_income_b"],
+    lineType: "income",
+  },
+  sumLiving: { sections: ["living"], lineType: "expense" },
+  sumHousing: { sections: ["housing"], lineType: "expense" },
+  sumInsurance: { sections: ["health_a", "health_b", "property_insurance"], lineType: "expense" },
+  sumSavingsLoans: { sections: ["pension", "wealth", "credit"], lineType: "expense" },
+  sumChildren: { sections: ["child_1", "child_2"], lineType: "expense" },
+  sumExpenses5: {
+    sections: [
+      "living",
+      "housing",
+      "baufinanzierung",
+      "health_a",
+      "health_b",
+      "property_insurance",
+      "pension",
+      "wealth",
+      "credit",
+      "child_1",
+      "child_2",
+    ],
+    lineType: "expense",
+  },
+  sumTotalExpenses: {
+    sections: [
+      "living",
+      "housing",
+      "baufinanzierung",
+      "health_a",
+      "health_b",
+      "property_insurance",
+      "pension",
+      "wealth",
+      "credit",
+      "child_1",
+      "child_2",
+    ],
+    lineType: "expense",
+  },
+};
 let selectedLineKey = null;
 
 const FETCH_OPTS = { credentials: "same-origin" };
@@ -508,8 +560,8 @@ function openMonthlyModePanel() {
   openPanel(
     t("monthlyCalculation"),
     `<div class="settings-group"><label>${t("monthlyCalculation")}</label>
-    <select id="set-monatlich"><option value="div12" ${mode === "div12" ? "selected" : ""}>Summe / 12</option>
-    <option value="filled" ${mode === "filled" ? "selected" : ""}>Average of filled months</option></select></div>`
+    <select id="set-monatlich"><option value="div12" ${mode === "div12" ? "selected" : ""}>${t("monthlyModeDiv12")}</option>
+    <option value="filled" ${mode === "filled" ? "selected" : ""}>${t("monthlyModeFilled")}</option></select></div>`
   );
   document.getElementById("panel-confirm").style.display = "block";
   document.getElementById("panel-confirm").onclick = async () => {
@@ -603,10 +655,11 @@ function closePanel() {
 }
 
 function fillMonthSelects() {
+  const months = getMonthLabels();
   ["dashboard-month", "charts-month", "bulk-from-month", "bulk-to-month"].forEach((id) => {
     const el = document.getElementById(id);
     if (!el) return;
-    el.innerHTML = MONTHS.map((m, i) => `<option value="${i + 1}">${m}</option>`).join("");
+    el.innerHTML = months.map((m, i) => `<option value="${i + 1}">${m}</option>`).join("");
     el.value = String(selectedMonth);
   });
   const toM = document.getElementById("bulk-to-month");
@@ -755,7 +808,7 @@ function switchPanel(panelId) {
 
 function showError(err) {
   console.error(err);
-  toast("Error: " + (err.message || "request failed"));
+  toast(`${t("errorPrefix")}: ${err.message || t("requestFailed")}`);
 }
 
 function initTabs() {
@@ -1061,10 +1114,10 @@ async function renderDashboard() {
     : `<span class="pill surplus">${t("surplus")}</span>`;
 
   document.getElementById("kpi-row").innerHTML = `
-    <div class="kpi-card income"><div class="label">Revenue</div><div class="value">${formatMoney(rev)}</div></div>
-    <div class="kpi-card expense"><div class="label">Expenses</div><div class="value">${formatMoney(exp)}</div></div>
-    <div class="kpi-card ${diff < 0 ? "deficit" : "surplus"}"><div class="label">Balance</div><div class="value">${formatMoney(diff)}</div></div>
-    <div class="kpi-card"><div class="label">Year total (Diff)</div><div class="value">${formatMoney(summary.difference.summe)}</div></div>
+    <div class="kpi-card income"><div class="label">${t("revenue")}</div><div class="value">${formatMoney(rev)}</div></div>
+    <div class="kpi-card expense"><div class="label">${t("expenses")}</div><div class="value">${formatMoney(exp)}</div></div>
+    <div class="kpi-card ${diff < 0 ? "deficit" : "surplus"}"><div class="label">${t("balance")}</div><div class="value">${formatMoney(diff)}</div></div>
+    <div class="kpi-card"><div class="label">${t("yearTotalDiff")}</div><div class="value">${formatMoney(summary.difference.summe)}</div></div>
     ${bs ? `<div class="kpi-card ${netWorth < 0 ? "deficit" : "surplus"}"><div class="label">${t("netWorth")}</div><div class="value">${formatMoney(netWorth)}</div></div>` : ""}
   `;
 
@@ -1074,69 +1127,130 @@ async function renderDashboard() {
   const t4 = summary.total_4.months[selectedMonth - 1];
   const tch = summary.total_children?.months?.[selectedMonth - 1] ?? 0;
   document.getElementById("section-cards").innerHTML = `
-    <div class="kpi-card"><div class="label">Total - 1 Living</div><div class="value">${formatMoney(t1)}</div></div>
-    <div class="kpi-card"><div class="label">Total - 2 Housing</div><div class="value">${formatMoney(t2)}</div></div>
-    <div class="kpi-card"><div class="label">Total - 3 Insurance</div><div class="value">${formatMoney(t3)}</div></div>
-    <div class="kpi-card"><div class="label">Total - 4 Savings/Loans</div><div class="value">${formatMoney(t4)}</div></div>
-    <div class="kpi-card"><div class="label">Children (school & fees)</div><div class="value">${formatMoney(tch)}</div></div>
+    <div class="kpi-card"><div class="label">${t("sumLiving")}</div><div class="value">${formatMoney(t1)}</div></div>
+    <div class="kpi-card"><div class="label">${t("sumHousing")}</div><div class="value">${formatMoney(t2)}</div></div>
+    <div class="kpi-card"><div class="label">${t("sumInsurance")}</div><div class="value">${formatMoney(t3)}</div></div>
+    <div class="kpi-card"><div class="label">${t("sumSavingsLoans")}</div><div class="value">${formatMoney(t4)}</div></div>
+    <div class="kpi-card"><div class="label">${t("sumChildren")}</div><div class="value">${formatMoney(tch)}</div></div>
   `;
 
   renderDonut(charts.donut_sections, "donut-chart", "donut-legend", (id) => loadDrilldown(id));
   renderBarChart(charts.monthly_bars);
 }
 
-function renderDonut(slices, canvasId, legendId, onClick) {
-  const ctx = document.getElementById(canvasId);
-  if (!ctx) return;
-  const labels = slices.map((s) => s.label_de || s.label);
-  const values = slices.map((s) => s.amount);
-  const existing = canvasId === "donut-chart" ? donutChart : chartsDonut;
-  if (existing) {
-    existing.data.labels = labels;
-    existing.data.datasets[0].data = values;
-    existing.update("none");
-    if (canvasId === "donut-chart") donutChart = existing;
-    else chartsDonut = existing;
-  } else {
-  const chart = new Chart(ctx, {
-    type: "doughnut",
-    data: {
-      labels,
-      datasets: [{
-        data: values,
-        backgroundColor: CHART_COLORS,
-        borderWidth: 2,
-        borderColor: "#fff",
-      }],
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      cutout: "65%",
-      plugins: {
-        legend: { display: false },
-        tooltip: {
-          callbacks: {
-            label: (c) => `${c.label}: ${formatMoney(c.raw)} (${slices[c.dataIndex]?.pct ?? 0}%)`,
-          },
-        },
-      },
-      onClick: (_, els) => {
-        if (els.length && onClick) onClick(slices[els[0].index].id);
-      },
-    },
-  });
+function buildExpenseItemSlices(maxVisible = 12) {
+  if (!budget || !meta) return [];
+  const items = [];
+  for (const sec of meta.sections) {
+    if (INCOME_SECTION_IDS.has(sec.id)) continue;
+    for (const line of linesForSection(sec)) {
+      if (line.line_type === "income") continue;
+      const vals = budget.entries[line.key] || [];
+      const amt = vals[selectedMonth - 1] || 0;
+      if (amt > 0) {
+        items.push({
+          id: line.key,
+          label: line.label_en,
+          label_en: line.label_en,
+          label_de: line.label_de,
+          amount: amt,
+        });
+      }
+    }
+  }
+  items.sort((a, b) => b.amount - a.amount);
+  let shown = items;
+  if (items.length > maxVisible) {
+    const top = items.slice(0, maxVisible - 1);
+    const restAmt = items.slice(maxVisible - 1).reduce((s, i) => s + i.amount, 0);
+    top.push({
+      id: "other_items",
+      label: "Other",
+      label_en: "Other",
+      label_de: "Sonstiges",
+      amount: restAmt,
+    });
+    shown = top;
+  }
+  const total = shown.reduce((s, i) => s + i.amount, 0) || 1;
+  return shown.map((i) => ({
+    ...i,
+    pct: Math.round((1000 * i.amount) / total) / 10,
+  }));
+}
 
-  if (canvasId === "donut-chart") donutChart = chart;
-  else chartsDonut = chart;
+function renderDonut(slices, canvasId, legendId, onClick, opts = {}) {
+  const ctx = document.getElementById(canvasId);
+  const leg = legendId ? document.getElementById(legendId) : null;
+  const chartType = opts.type || "doughnut";
+  const cutout = opts.cutout ?? (chartType === "pie" ? 0 : "65%");
+
+  if (!slices.length) {
+    const existing = donutChartByCanvas[canvasId];
+    if (existing) {
+      existing.destroy();
+      delete donutChartByCanvas[canvasId];
+    }
+    if (canvasId === "donut-chart") donutChart = null;
+    else if (canvasId === "charts-donut") chartsDonut = null;
+    else if (canvasId === "charts-items-pie") chartsItemsPie = null;
+    if (leg) leg.innerHTML = `<li class="legend-empty">${escapeHtml(t("noExpensesMonth"))}</li>`;
+    return;
   }
 
-  const leg = document.getElementById(legendId);
+  if (!ctx) return;
+  const labels = slices.map((s) => chartSliceLabel(s));
+  const values = slices.map((s) => s.amount);
+  const colors = slices.map((_, i) => CHART_COLORS[i % CHART_COLORS.length]);
+  const existing = donutChartByCanvas[canvasId];
+  if (existing) {
+    existing.config.type = chartType;
+    existing.data.labels = labels;
+    existing.data.datasets[0].data = values;
+    existing.data.datasets[0].backgroundColor = colors;
+    if (existing.options.cutout !== undefined) existing.options.cutout = cutout;
+    existing.update("none");
+  } else {
+    const chart = new Chart(ctx, {
+      type: chartType,
+      data: {
+        labels,
+        datasets: [{
+          data: values,
+          backgroundColor: colors,
+          borderWidth: 2,
+          borderColor: "#fff",
+        }],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        cutout,
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              label: (c) =>
+                `${c.label}: ${formatMoney(c.raw)} (${slices[c.dataIndex]?.pct ?? 0}%)`,
+            },
+          },
+        },
+        onClick: (_, els) => {
+          if (els.length && onClick) onClick(slices[els[0].index].id);
+        },
+      },
+    });
+    donutChartByCanvas[canvasId] = chart;
+    if (canvasId === "donut-chart") donutChart = chart;
+    else if (canvasId === "charts-donut") chartsDonut = chart;
+    else if (canvasId === "charts-items-pie") chartsItemsPie = chart;
+  }
+
   if (leg) {
     leg.innerHTML = slices
       .map(
         (s, i) =>
-          `<li data-id="${s.id}"><span class="dot" style="background:${CHART_COLORS[i % CHART_COLORS.length]}"></span>${s.label_de || s.label} · ${formatMoney(s.amount)} (${s.pct}%)</li>`
+          `<li data-id="${s.id}"><span class="dot" style="background:${CHART_COLORS[i % CHART_COLORS.length]}"></span>${chartSliceLabel(s)} · ${formatMoney(s.amount)} (${s.pct}%)</li>`
       )
       .join("");
     leg.querySelectorAll("li").forEach((li, i) => {
@@ -1151,18 +1265,21 @@ function renderBarChart(bars) {
   const revData = bars.map((b) => b.revenue);
   const expData = bars.map((b) => b.expenses);
   if (barChart) {
+    barChart.data.labels = getMonthLabels();
     barChart.data.datasets[0].data = revData;
+    barChart.data.datasets[0].label = t("revenue");
     barChart.data.datasets[1].data = expData;
+    barChart.data.datasets[1].label = t("expenses");
     barChart.update("none");
     return;
   }
   barChart = new Chart(ctx, {
     type: "bar",
     data: {
-      labels: MONTHS,
+      labels: getMonthLabels(),
       datasets: [
-        { label: "Revenue", data: revData, backgroundColor: "#059669" },
-        { label: "Expenses", data: expData, backgroundColor: "#ea580c" },
+        { label: t("revenue"), data: revData, backgroundColor: "#059669" },
+        { label: t("expenses"), data: expData, backgroundColor: "#ea580c" },
       ],
     },
     options: {
@@ -1184,16 +1301,16 @@ async function loadDrilldown(sectionId) {
   const data = await api(`${apiBase()}/drilldown?section=${sectionId}&month=${selectedMonth}`);
   const card = document.getElementById("drilldown-card");
   if (!data.slices.length) {
-    toast("No expenses in this section for selected month");
+    toast(t("noExpensesSection"));
     return;
   }
   card.style.display = "block";
-  document.getElementById("drilldown-title").textContent = `Drill-down: ${sectionId}`;
+  document.getElementById("drilldown-title").textContent = `${t("drilldownPrefix")}: ${(meta?.sections?.find((x) => x.id === sectionId) ? sectionTitle(meta.sections.find((x) => x.id === sectionId)) : sectionId)}`;
   if (drilldownChart) drilldownChart.destroy();
   drilldownChart = new Chart(document.getElementById("drilldown-chart"), {
     type: "doughnut",
     data: {
-      labels: data.slices.map((s) => s.label),
+      labels: data.slices.map((s) => chartSliceLabel(s)),
       datasets: [{ data: data.slices.map((s) => s.amount), backgroundColor: CHART_COLORS }],
     },
     options: { responsive: true, maintainAspectRatio: false },
@@ -1204,9 +1321,13 @@ async function renderChartsPanel() {
   if (!budget || !meta) return;
   const { charts } = await getChartsData();
   renderDonut(charts.donut_sections, "charts-donut", null, loadDrilldown);
+  renderDonut(buildExpenseItemSlices(12), "charts-items-pie", "charts-items-legend", null, {
+    type: "pie",
+    cutout: 0,
+  });
   const allLines = [];
   for (const sec of meta.sections) {
-    if (["income", "self_employed_a", "self_employed_b", "net_a", "net_b", "other_income_a", "other_income_b"].some((x) => sec.id.startsWith(x) || sec.id === x)) continue;
+    if (INCOME_SECTION_IDS.has(sec.id)) continue;
     for (const line of sec.lines) {
       const vals = budget.entries[line.key] || [];
       const amt = vals[selectedMonth - 1] || 0;
@@ -2035,43 +2156,131 @@ async function renderBalancePanelInner(kpiEl, assetsEl, debtsEl) {
   paintBalancePanel(budget.balance_sheet || emptyBalanceSheet());
 }
 
+function getFilledLinesForSummaryKey(summaryKey) {
+  const cfg = SUMMARY_EXPAND_CONFIG[summaryKey];
+  if (!cfg || !budget || !meta) return [];
+  const out = [];
+  const seen = new Set();
+  for (const sectionId of cfg.sections) {
+    const sec = meta.sections.find((s) => s.id === sectionId);
+    if (!sec) continue;
+    for (const line of linesForSection(sec)) {
+      if (cfg.lineType && line.line_type !== cfg.lineType) continue;
+      if (seen.has(line.key)) continue;
+      const vals = budget.entries[line.key] || Array(12).fill(0);
+      if (!vals.some((v) => v !== 0)) continue;
+      seen.add(line.key);
+      const summe = vals.reduce((a, b) => a + b, 0);
+      out.push({
+        key: line.key,
+        label: `${sectionTitle(sec)} — ${lineLabel(line)}`,
+        months: vals,
+        summe,
+        monatlich: lineMonatlich(vals),
+      });
+    }
+  }
+  out.sort((a, b) => b.summe - a.summe);
+  return out;
+}
+
+function renderSummaryDetailRows(summaryKey, colCount) {
+  const filled = getFilledLinesForSummaryKey(summaryKey);
+  if (!filled.length) {
+    return `<tr class="summary-detail summary-detail-empty" data-parent="${summaryKey}" hidden>
+      <td colspan="${colCount}">${escapeHtml(t("summaryNoFilled"))}</td></tr>`;
+  }
+  return filled
+    .map((line) => {
+      let row = `<tr class="summary-detail" data-parent="${summaryKey}" hidden>`;
+      row += `<td>${escapeHtml(line.label)}</td>`;
+      for (let i = 0; i < 12; i++) row += `<td>${formatMoney(line.months[i])}</td>`;
+      row += `<td>${formatMoney(line.summe)}</td><td>${formatMoney(line.monatlich)}</td></tr>`;
+      return row;
+    })
+    .join("");
+}
+
+function bindSummaryTableExpand() {
+  const table = document.getElementById("summary-table");
+  if (!table || table.dataset.expandBound) return;
+  table.dataset.expandBound = "1";
+  table.addEventListener("click", (e) => {
+    const row = e.target.closest("tr.summary-row-toggle");
+    if (!row) return;
+    const key = row.dataset.summaryKey;
+    if (!key) return;
+    const open = !row.classList.contains("expanded");
+    table.querySelectorAll("tr.summary-row-toggle.expanded").forEach((r) => {
+      if (r === row) return;
+      r.classList.remove("expanded");
+      const k = r.dataset.summaryKey;
+      table.querySelectorAll(`tr.summary-detail[data-parent="${k}"]`).forEach((d) => {
+        d.hidden = true;
+      });
+      const icon = r.querySelector(".summary-expand");
+      if (icon) icon.textContent = "▶";
+    });
+    row.classList.toggle("expanded", open);
+    table.querySelectorAll(`tr.summary-detail[data-parent="${key}"]`).forEach((d) => {
+      d.hidden = !open;
+    });
+    const icon = row.querySelector(".summary-expand");
+    if (icon) icon.textContent = open ? "▼" : "▶";
+  });
+}
+
 function renderSummary() {
   if (!budget?.summary) return;
   const s = budget.summary;
-  const rows = [
-    ["Total revenue", s.total_revenue],
-    ["Total - 1 Living", s.total_1],
-    ["Total - 2 Housing", s.total_2],
-    ["Total - 3 Insurance", s.total_3],
-    ["Total - 4 Savings/Loans", s.total_4],
-    ["Children (school & fees)", s.total_children],
-    ["Total - 5 Expenses", s.total_5],
-    ["Total expenses", s.total_expenses],
-    ["Difference", s.difference],
-  ];
-  let html = "<thead><tr><th>Row</th>" + MONTHS.map((m) => `<th>${m}</th>`).join("") + "<th>Summe</th><th>Monatlich</th></tr></thead><tbody>";
-  for (const [label, data] of rows) {
-    const isDiff = label === "Difference";
-    const cls = isDiff ? `difference ${data.summe < 0 ? "deficit" : "surplus"} highlight` : "";
-    html += `<tr class="${cls}"><td>${label}</td>`;
+  const rows = summaryRowsForTable(s);
+  const months = getMonthLabels();
+  const colCount = 15;
+  let html =
+    "<thead><tr><th>" +
+    t("colRow") +
+    "</th>" +
+    months.map((m) => `<th>${m}</th>`).join("") +
+    "<th>" +
+    t("colSumme") +
+    "</th><th>" +
+    t("colMonatlich") +
+    "</th></tr></thead><tbody>";
+  for (const [key, data] of rows) {
+    const label = t(key);
+    const isDiff = key === "sumDifference";
+    const canExpand = !!SUMMARY_EXPAND_CONFIG[key];
+    const cls = [
+      isDiff ? `difference ${data.summe < 0 ? "deficit" : "surplus"} highlight` : "",
+      canExpand ? "summary-row-toggle" : "",
+    ]
+      .filter(Boolean)
+      .join(" ");
+    const expandBtn = canExpand
+      ? `<span class="summary-expand" title="${escapeHtml(t("summaryShowFilled"))}">▶</span> `
+      : "";
+    html += `<tr class="${cls}" data-summary-key="${key}"><td>${expandBtn}${escapeHtml(label)}</td>`;
     for (let i = 0; i < 12; i++) html += `<td>${formatMoney(data.months[i])}</td>`;
     html += `<td>${formatMoney(data.summe)}</td><td>${formatMoney(data.monatlich)}</td></tr>`;
+    if (canExpand) html += renderSummaryDetailRows(key, colCount);
   }
   html += "</tbody>";
-  document.getElementById("summary-table").innerHTML = html;
+  const table = document.getElementById("summary-table");
+  table.innerHTML = html;
+  bindSummaryTableExpand();
 }
 
 function renderPlanGrid(tabId) {
   const container = document.getElementById("plan-grids");
   if (!container) return;
   if (!meta || !budget) {
-    container.innerHTML = "<p class='hint-banner'>Could not load budget. Refresh the page or check the server.</p>";
+    container.innerHTML = `<p class='hint-banner'>${t('loadError')}</p>`;
     return;
   }
   const sections = meta.sections.filter((s) => s.tab === tabId);
   let html = "";
   for (const sec of sections) {
-    html += `<div class="grid-wrap" data-section-id="${sec.id}" style="margin-bottom:24px"><table class="budget-grid"><caption class="plan-section-caption" style="caption-side:top;text-align:left;padding:12px;font-weight:700">${sectionTitle(sec)}</caption><thead><tr><th>${t("category")}</th>${MONTHS.map((m) => `<th>${m}</th>`).join("")}<th>Summe</th><th>Monatlich</th></tr></thead><tbody>`;
+    html += `<div class="grid-wrap" data-section-id="${sec.id}" style="margin-bottom:24px"><table class="budget-grid"><caption class="plan-section-caption" style="caption-side:top;text-align:left;padding:12px;font-weight:700">${sectionTitle(sec)}</caption><thead><tr><th>${t("category")}</th>${getMonthLabels().map((m) => `<th>${m}</th>`).join("")}<th>${t("colSumme")}</th><th>${t("colMonatlich")}</th></tr></thead><tbody>`;
     for (const line of linesForSection(sec)) {
       const vals = budget.entries[line.key] || Array(12).fill(0);
       const summe = vals.reduce((a, b) => a + b, 0);
@@ -2082,7 +2291,7 @@ function renderPlanGrid(tabId) {
       const delBtn = line.custom
         ? `<button type="button" class="btn-delete-row" data-line-key="${line.key}" title="${t("deleteRow")}">×</button> `
         : "";
-      html += `<tr class="${rowCls}" data-key="${line.key}"><td>${delBtn}<span>${line.label_de}</span><span class="sub-label">${line.label_en}</span></td>`;
+      html += `<tr class="${rowCls}" data-key="${line.key}"><td>${delBtn}<span>${lineLabel(line)}</span></td>`;
       for (let m = 1; m <= 12; m++) {
         const v = vals[m - 1];
         const cellCls = v ? " has-value" : "";
@@ -2093,7 +2302,7 @@ function renderPlanGrid(tabId) {
     const sk = sec.summary_key;
     if (sk && budget.summary.section_summaries?.[sk]) {
       const sm = budget.summary.section_summaries[sk];
-      html += `<tr class="summary-row" data-summary-key="${sk}"><td>${sec.summary_key}</td>`;
+      html += `<tr class="summary-row" data-summary-key="${sk}"><td>${t("sectionTotal")}: ${sectionTitle(sec)}</td>`;
       for (let i = 0; i < 12; i++) html += `<td class="computed">${formatMoney(sm.months[i])}</td>`;
       html += `<td class="computed">${formatMoney(sm.summe)}</td><td class="computed">${formatMoney(sm.monatlich)}</td></tr>`;
     }
@@ -2172,14 +2381,14 @@ async function applyBulk(startMonth, endMonth) {
   const sel = document.getElementById("bulk-line-select");
   const lineKey = sel?.value || selectedLineKey;
   if (!lineKey) {
-    toast("Choose a category");
+    toast(t("chooseCategory"));
     return;
   }
   const amount = parseFloat(document.getElementById("bulk-amount").value);
   const start = startMonth ?? parseInt(document.getElementById("bulk-from-month").value, 10);
   const end = endMonth ?? parseInt(document.getElementById("bulk-to-month").value, 10);
   if (isNaN(amount)) {
-    toast("Enter an amount");
+    toast(t("enterAmount"));
     return;
   }
   const res = await api(`${apiBase()}/bulk`, {
@@ -2388,7 +2597,7 @@ function initLanguage() {
       const sel = document.getElementById("currency-select");
       if (sel) populateCurrencySelect(sel);
       if (meta) initPlanTabs();
-      if (budget) await refreshCurrencyDisplay();
+      await refreshUiLanguage();
       updateAddRowTargetHint();
     });
   });
@@ -2396,15 +2605,35 @@ function initLanguage() {
   updateAddRowTargetHint();
 }
 
-async function refreshCurrencyDisplay() {
+function updateBarChartLanguage() {
+  if (!barChart) return;
+  barChart.data.labels = getMonthLabels();
+  barChart.data.datasets[0].label = t("revenue");
+  barChart.data.datasets[1].label = t("expenses");
+  barChart.update("none");
+}
+
+async function refreshUiLanguage() {
+  applyTranslations();
+  fillMonthSelects();
+  if (!budget) return;
   updateCurrencyChrome();
   invalidateChartsCache();
   renderSummary();
   updatePlanGridTotals();
+  updateBarChartLanguage();
   const panel = activePanelId();
   if (panel === "panel-dashboard") await renderDashboard();
   else if (panel === "panel-charts") await renderChartsPanel();
   else if (panel === "panel-plan") renderPlanGrid(activePlanTab);
+  else if (panel === "panel-summary") renderSummary();
+  else if (panel === "panel-balance") await renderBalancePanel();
+  else if (panel === "panel-future") await renderFuturePanel();
+  else if (panel === "panel-clients") await renderClientsPanel();
+}
+
+async function refreshCurrencyDisplay() {
+  await refreshUiLanguage();
 }
 
 function initCurrency() {
@@ -2556,7 +2785,7 @@ function boot() {
       );
       const g = document.getElementById("plan-grids");
       if (g) g.innerHTML = "<p class='hint-banner error'>Server not reachable. See message above.</p>";
-      toast("Failed to load — start the server and refresh (Ctrl+F5)");
+      toast(t('loadError'));
     });
 }
 
